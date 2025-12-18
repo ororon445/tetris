@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Піщаний Тетріс: Космічна Одіссея</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: radial-gradient(circle at center, #1e1b4b 0%, #020617 100%);
+            color: white;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        /* Ефект зірок на фоні */
+        .stars-container {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background-image: 
+                radial-gradient(1px 1px at 20px 30px, #eee, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 40px 70px, #fff, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 50px 160px, #ddd, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 90px 40px, #fff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 130px 80px, #fff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 160px 120px, #ddd, rgba(0,0,0,0));
+            background-repeat: repeat;
+            background-size: 200px 200px;
+            opacity: 0.3;
+            animation: twinkle 5s infinite linear;
+        }
+
+        @keyframes twinkle {
+            0% { opacity: 0.2; }
+            50% { opacity: 0.5; }
+            100% { opacity: 0.2; }
+        }
+
+        canvas {
+            border: 4px solid #312e81;
+            box-shadow: 0 0 50px rgba(79, 70, 229, 0.3);
+            background-color: rgba(2, 6, 23, 0.8);
+            image-rendering: pixelated;
+            border-radius: 12px;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .controls-btn {
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .info-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4 overflow-hidden">
+    <div class="stars-container"></div>
+
+    <!-- Контейнер гри по центру -->
+    <div class="flex flex-col items-center w-full max-w-md z-10">
+        
+        <!-- Керування в самому верху для мобільних -->
+        <div class="grid grid-cols-4 gap-2 mb-4 w-full lg:hidden">
+            <button class="controls-btn bg-white/10 p-3 rounded-xl active:bg-cyan-500/50 flex justify-center items-center" onmousedown="playerMove(-1)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            </button>
+            <button class="controls-btn bg-white/10 p-3 rounded-xl active:bg-cyan-500/50 flex justify-center items-center" onmousedown="playerRotate()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            </button>
+            <button class="controls-btn bg-white/10 p-3 rounded-xl active:bg-cyan-500/50 flex justify-center items-center" onmousedown="playerMove(1)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+            </button>
+            <button class="controls-btn bg-white/10 p-3 rounded-xl active:bg-cyan-500/50 flex justify-center items-center" onmousedown="playerDrop()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+            </button>
+        </div>
+
+        <!-- Панель інформації НАД полотном -->
+        <div class="flex flex-row justify-between w-full gap-3 mb-4">
+            <div class="flex-1 info-card p-2 text-center">
+                <h3 class="text-indigo-300 text-[10px] uppercase font-black tracking-widest">Енергія</h3>
+                <p id="score" class="text-xl font-mono text-cyan-400 font-bold">0</p>
+            </div>
+            
+            <div class="flex-1 info-card p-2 flex flex-row items-center justify-around">
+                <h3 class="text-indigo-300 text-[10px] uppercase font-black tracking-widest">Наступний</h3>
+                <canvas id="next" width="60" height="60" style="width: 40px; height: 40px;"></canvas>
+            </div>
+        </div>
+
+        <!-- Ігрове поле (По центру) -->
+        <div class="relative">
+            <canvas id="tetris" width="360" height="600"></canvas>
+            
+            <!-- Екран Game Over -->
+            <div id="game-over" class="hidden absolute inset-0 bg-indigo-950/90 flex flex-col items-center justify-center text-center p-8 rounded-xl backdrop-blur-md">
+                <h2 class="text-3xl font-black text-cyan-400 mb-4 uppercase">Місія Провалена</h2>
+                <p id="final-score" class="text-xl mb-6 font-mono">Енергія: 0</p>
+                <button onclick="resetGame()" class="bg-indigo-600 hover:bg-cyan-500 text-white px-8 py-3 rounded-xl font-black transition-all transform active:scale-95">
+                    ПЕРЕЗАПУСК
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('tetris');
+        const context = canvas.getContext('2d');
+        const nextCanvas = document.getElementById('next');
+        const nextContext = nextCanvas.getContext('2d');
+
+        const BLOCK_SIZE = 15; 
+        const COLS = canvas.width / BLOCK_SIZE;
+        const ROWS = canvas.height / BLOCK_SIZE;
+
+        const colors = [
+            null,
+            '#22d3ee', '#818cf8', '#fb7185', '#facc15', '#4ade80', '#a78bfa', '#f97316', '#ff4dff', '#ffffff', '#ff9999'
+        ];
+
+        let arena = createMatrix(COLS, ROWS);
+        let score = 0;
+        let isPaused = false;
+
+        function createMatrix(w, h) {
+            const matrix = [];
+            while (h--) matrix.push(new Array(w).fill(0));
+            return matrix;
+        }
+
+        function createPiece(type) {
+            const pieces = {
+                // Класичні
+                'I': [[1,1,1,1]],
+                'L': [[0,0,2],[2,2,2]],
+                'J': [[3,0,0],[3,3,3]],
+                'O': [[4,4],[4,4]],
+                'Z': [[5,5,0],[0,5,5]],
+                'S': [[0,6,6],[6,6,0]],
+                'T': [[0,7,0],[7,7,7]],
+                // Нові фігури
+                'P': [[0,8,0],[8,8,8],[0,8,0]], // Хрестик (+)
+                'D': [[9]],                   // Крапка (Dot)
+                'B': [[10,0,0],[10,0,0],[10,10,10]], // Великий кут
+                'X': [[11,11,0,0],[0,11,11,0],[0,0,11,11]] // Довга змійка
+            };
+            return pieces[type];
+        }
+
+        const player = {
+            pos: {x: 0, y: 0},
+            matrix: null,
+            next: null,
+            color: 0
+        };
+
+        function playerReset() {
+            const pieces = 'ILJOTSZPD B X'; // Додано нові типи до вибору
+            const type = pieces[Math.random() * pieces.length | 0];
+            
+            if (!player.next) {
+                const startType = pieces[Math.random() * pieces.length | 0].trim() || 'O';
+                player.next = createPiece(startType);
+            }
+            
+            player.matrix = player.next;
+            const nextType = pieces[Math.random() * pieces.length | 0].trim() || 'I';
+            player.next = createPiece(nextType);
+            
+            player.pos.y = 0;
+            player.pos.x = Math.floor(COLS / 2) - Math.floor(player.matrix[0].length / 2);
+            
+            // Визначення кольору фігури
+            for (let r of player.matrix) {
+                for (let v of r) if (v !== 0) { player.color = v; break; }
+            }
+
+            if (collide()) gameOver();
+        }
+
+        function collide() {
+            for (let y = 0; y < player.matrix.length; ++y) {
+                for (let x = 0; x < player.matrix[y].length; ++x) {
+                    if (player.matrix[y][x] !== 0) {
+                        const ax = player.pos.x + x;
+                        const ay = player.pos.y + y;
+                        if (ay >= ROWS || ax < 0 || ax >= COLS || (ay >= 0 && arena[ay][ax] !== 0)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function solidify() {
+            player.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        const ay = player.pos.y + y;
+                        const ax = player.pos.x + x;
+                        if (ay >= 0 && ay < ROWS && ax >= 0 && ax < COLS) arena[ay][ax] = player.color;
+                    }
+                });
+            });
+            playerReset();
+        }
+
+        function updateSand() {
+            let moved = false;
+            for (let y = ROWS - 2; y >= 0; y--) {
+                for (let x = 0; x < COLS; x++) {
+                    if (arena[y][x] !== 0) {
+                        const color = arena[y][x];
+                        if (arena[y + 1][x] === 0) {
+                            arena[y + 1][x] = color;
+                            arena[y][x] = 0;
+                            moved = true;
+                        } else {
+                            const dir = Math.random() < 0.5 ? -1 : 1;
+                            if (x + dir >= 0 && x + dir < COLS && arena[y + 1][x + dir] === 0) {
+                                arena[y + 1][x + dir] = color;
+                                arena[y][x] = 0;
+                                moved = true;
+                            } else if (x - dir >= 0 && x - dir < COLS && arena[y + 1][x - dir] === 0) {
+                                arena[y + 1][x - dir] = color;
+                                arena[y][x] = 0;
+                                moved = true;
+                            }
+                        }
+                    }
+                }
+            }
+            return moved;
+        }
+
+        function clearLines() {
+            let linesCleared = 0;
+            for (let y = ROWS - 1; y >= 0; y--) {
+                let filled = true;
+                for (let x = 0; x < COLS; x++) {
+                    if (arena[y][x] === 0) {
+                        filled = false;
+                        break;
+                    }
+                }
+                if (filled) {
+                    arena.splice(y, 1);
+                    arena.unshift(new Array(COLS).fill(0));
+                    linesCleared++;
+                    y++;
+                }
+            }
+            if (linesCleared > 0) {
+                score += linesCleared * 100;
+                document.getElementById('score').innerText = score;
+            }
+        }
+
+        function draw() {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+
+            arena.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        const color = colors[value] || '#fff';
+                        context.fillStyle = color;
+                        context.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        context.fillStyle = 'rgba(255,255,255,0.2)';
+                        context.fillRect(x * BLOCK_SIZE + 2, y * BLOCK_SIZE + 2, 3, 3);
+                    }
+                });
+            });
+
+            if (player.matrix) {
+                const color = colors[player.color] || '#fff';
+                context.shadowBlur = 10;
+                context.shadowColor = color;
+                
+                player.matrix.forEach((row, y) => {
+                    row.forEach((value, x) => {
+                        if (value !== 0) {
+                            context.fillStyle = color;
+                            context.fillRect((player.pos.x + x) * BLOCK_SIZE, (player.pos.y + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                            context.fillStyle = 'rgba(255,255,255,0.4)';
+                            context.fillRect((player.pos.x + x) * BLOCK_SIZE + 3, (player.pos.y + y) * BLOCK_SIZE + 3, 4, 4);
+                        }
+                    });
+                });
+                context.shadowBlur = 0;
+            }
+
+            nextContext.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+            if (player.next) {
+                let nColorIdx = 1;
+                for(let r of player.next) for(let v of r) if(v!==0) nColorIdx = v;
+                const color = colors[nColorIdx] || '#fff';
+                nextContext.fillStyle = color;
+                
+                // Центрування превью для фігур різного розміру
+                const offsetX = (nextCanvas.width - player.next[0].length * 10) / 2;
+                const offsetY = (nextCanvas.height - player.next.length * 10) / 2;
+
+                player.next.forEach((row, y) => {
+                    row.forEach((value, x) => {
+                        if (value !== 0) {
+                            nextContext.fillRect(offsetX + x * 10, offsetY + y * 10, 10, 10);
+                        }
+                    });
+                });
+            }
+        }
+
+        let dropCounter = 0;
+        let dropInterval = 600; 
+        let lastTime = 0;
+
+        function update(time = 0) {
+            if (isPaused) return;
+            const deltaTime = time - lastTime;
+            lastTime = time;
+
+            dropCounter += deltaTime;
+            if (dropCounter > dropInterval) {
+                player.pos.y++;
+                if (collide()) {
+                    player.pos.y--;
+                    solidify();
+                }
+                dropCounter = 0;
+            }
+
+            updateSand();
+            clearLines();
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function playerMove(dir) {
+            player.pos.x += dir;
+            if (collide()) player.pos.x -= dir;
+        }
+
+        function playerRotate() {
+            const matrix = player.matrix;
+            const newMatrix = matrix[0].map((_, i) => matrix.map(row => row[i]).reverse());
+            const oldMatrix = player.matrix;
+            const oldX = player.pos.x;
+            
+            player.matrix = newMatrix;
+            if (collide()) {
+                player.pos.x += 1;
+                if (collide()) {
+                    player.pos.x -= 2;
+                    if (collide()) {
+                        player.pos.x = oldX;
+                        player.matrix = oldMatrix;
+                    }
+                }
+            }
+        }
+
+        function playerDrop() {
+            player.pos.y++;
+            if (collide()) {
+                player.pos.y--;
+                solidify();
+            }
+            dropCounter = 0;
+        }
+
+        function gameOver() {
+            isPaused = true;
+            document.getElementById('game-over').classList.remove('hidden');
+            document.getElementById('final-score').innerText = "Енергія: " + score;
+        }
+
+        function resetGame() {
+            arena = createMatrix(COLS, ROWS);
+            score = 0;
+            document.getElementById('score').innerText = "0";
+            isPaused = false;
+            document.getElementById('game-over').classList.add('hidden');
+            playerReset();
+            requestAnimationFrame(update);
+        }
+
+        document.addEventListener('keydown', e => {
+            if (isPaused) return;
+            if (e.key === 'ArrowLeft') playerMove(-1);
+            if (e.key === 'ArrowRight') playerMove(1);
+            if (e.key === 'ArrowDown') playerDrop();
+            if (e.key === 'ArrowUp') playerRotate();
+        });
+
+        playerReset();
+        update();
+    </script>
+</body>
+</html>
